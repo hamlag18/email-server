@@ -3,25 +3,56 @@ const nodemailer = require('nodemailer');
 const cors = require('cors');
 const app = express();
 
-// Middleware
-app.use(express.json());
-app.use(cors());
+// CORS-konfiguration med alla headers som behövs
+app.use(cors({
+  origin: '*', // Tillåt alla origins under utveckling
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
 
-// Skapa en SMTP-transportör med dina befintliga miljövariabler
+// Body parser middleware
+app.use(express.json());
+
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.json({ status: 'OK', message: 'Email server is running' });
+});
+
+// SMTP-transportör
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,      // smtp.gmail.com
-  port: process.env.SMTP_PORT,      // 587
-  secure: false,                    // true för port 465, false för andra portar
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT),
+  secure: false,
   auth: {
-    user: process.env.USERNAME,     // tidrapport1157@gmail.com
-    pass: process.env.PASSWORD      // vjqt bfpx zouo yrzz
+    user: process.env.USERNAME,
+    pass: process.env.PASSWORD
+  },
+  tls: {
+    rejectUnauthorized: false // Lägg till denna för utveckling
+  }
+});
+
+// Verifiera SMTP-anslutning vid start
+transporter.verify(function(error, success) {
+  if (error) {
+    console.error('SMTP-verifieringsfel:', error);
+  } else {
+    console.log('Server är redo att skicka e-post');
   }
 });
 
 // E-post endpoint
 app.post('/', async (req, res) => {
   try {
-    console.log('Tar emot förfrågan:', req.body);
+    console.log('Tar emot förfrågan:', {
+      recipient: req.body.recipient,
+      subject: req.body.subject,
+      contentLength: req.body?.content?.length
+    });
+
     const { recipient, subject, content } = req.body;
 
     if (!recipient || !subject || !content) {
@@ -33,18 +64,14 @@ app.post('/', async (req, res) => {
     }
 
     const mailOptions = {
-      from: process.env.FROM_EMAIL,  // tidrapport1157@gmail.com
+      from: process.env.FROM_EMAIL,
       to: recipient,
       subject: subject,
       text: content,
       html: content.replace(/\n/g, '<br>')
     };
 
-    console.log('Skickar e-post med följande alternativ:', {
-      to: mailOptions.to,
-      subject: mailOptions.subject,
-      contentLength: content.length
-    });
+    console.log('Skickar e-post till:', mailOptions.to);
 
     await transporter.sendMail(mailOptions);
     console.log('E-post skickad framgångsrikt');
@@ -62,8 +89,18 @@ app.post('/', async (req, res) => {
   }
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Serverfel:', err);
+  res.status(500).json({
+    success: false,
+    error: 'Internt serverfel',
+    details: err.message
+  });
+});
+
+const port = process.env.PORT || 8080;
+const server = app.listen(port, '0.0.0.0', () => {
   console.log(`Server körs på port ${port}`);
   console.log('Miljövariabler laddade:', {
     host: process.env.SMTP_HOST ? 'finns' : 'saknas',
@@ -71,5 +108,14 @@ app.listen(port, () => {
     username: process.env.USERNAME ? 'finns' : 'saknas',
     password: process.env.PASSWORD ? 'finns' : 'saknas',
     fromEmail: process.env.FROM_EMAIL ? 'finns' : 'saknas'
+  });
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal mottagen. Stänger ner servern...');
+  server.close(() => {
+    console.log('Server avstängd');
+    process.exit(0);
   });
 });
