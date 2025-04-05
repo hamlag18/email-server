@@ -1,0 +1,68 @@
+import express from 'express';
+import nodemailer from 'nodemailer';
+import cors from 'cors';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Health check
+app.get('/', (_, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// E-post endpoint
+app.post('/', async (req, res) => {
+  try {
+    console.log('Tar emot förfrågan');
+    const { recipient, subject, content } = req.body;
+
+    if (!recipient || !subject || !content) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Saknade fält i förfrågan' 
+      });
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT),
+      secure: false,
+      auth: {
+        user: process.env.USERNAME,
+        pass: process.env.PASSWORD
+      }
+    });
+
+    await transporter.sendMail({
+      from: process.env.FROM_EMAIL,
+      to: recipient,
+      subject: subject,
+      text: content,
+      html: content.replace(/\n/g, '<br>')
+    });
+
+    console.log('E-post skickad');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Fel:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`Server körs på port ${port}`);
+  console.log('Miljövariabler:', {
+    host: process.env.SMTP_HOST ? 'finns' : 'saknas',
+    port: process.env.SMTP_PORT ? 'finns' : 'saknas',
+    username: process.env.USERNAME ? 'finns' : 'saknas',
+    password: process.env.PASSWORD ? 'finns' : 'saknas',
+    fromEmail: process.env.FROM_EMAIL ? 'finns' : 'saknas'
+  });
+});
