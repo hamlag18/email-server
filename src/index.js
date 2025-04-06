@@ -7,8 +7,16 @@ dotenv.config();
 
 const app = express();
 
+// CORS-konfiguration
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || 'https://web-production-2e81.up.railway.app',
+  methods: ['POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  credentials: true
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Health check
@@ -63,6 +71,7 @@ app.listen(port, () => {
     port: process.env.SMTP_PORT ? 'finns' : 'saknas',
     username: process.env.USERNAME ? 'finns' : 'saknas',
     password: process.env.PASSWORD ? 'finns' : 'saknas',
-    fromEmail: process.env.FROM_EMAIL ? 'finns' : 'saknas'
+    fromEmail: process.env.FROM_EMAIL ? 'finns' : 'saknas',
+    corsOrigin: process.env.CORS_ORIGIN ? 'finns' : 'saknas'
   });
 });
