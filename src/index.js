@@ -47,12 +47,15 @@ app.post('/', async (req, res) => {
       }
     });
 
+    // Skapa en textversion av innehållet genom att ta bort HTML-taggar
+    const textContent = content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ');
+
     await transporter.sendMail({
       from: process.env.FROM_EMAIL,
       to: recipient,
       subject: subject,
-      text: content,
-      html: content.replace(/\n/g, '<br>')
+      text: textContent, // Textversion för e-postklienter som inte stödjer HTML
+      html: content // Behåll original HTML-innehållet
     });
 
     console.log('E-post skickad');
